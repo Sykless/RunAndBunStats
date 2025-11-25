@@ -6,7 +6,38 @@ import os
 
 ZONES = ["Starter", "Littleroot Town", "Route 101", "Oldale Town", "Route 103", "Route 102", "Petalburg City", "Route 104", "Dewford Town", "Route 107", "Route 106", "Granite Cave", "Route 109", "Slateport City", "Route 110", "Petalburg Woods", "Rustboro City", "Route 115", "Route 116", "Rusturf Tunnel", "Verdanturf Town", "Route 117", "Mauville City", "Route 111", "Route 118", "Altering Cave", "Mirage Tower", "Route 113", "Fallarbor Town", "Desert Underpass", "Route 114", "Meteor Falls", "Route 112", "Fiery Path", "Mt. Chimney", "Jagged Pass", "Lavaridge Town", "Route 134", "New Mauville", "Route 105", "Route 108", "Abandoned Ship", "Route 119", "Fortree City", "Route 120", "Scorched Slab", "Route 121", "Safari Zone", "Lilycove City", "Route 122", "Route 123", "Mt. Pyre", "Magma Hideout", "Aqua Hideout", "Route 124", "Mossdeep City", "Route 125", "Shoal Cave", "Route 127", "Route 124 Underwater", "Route 126", "Route 126 Underwater", "Sootopolis City", "Route 128", "Route 129", "Ever Grande City", "Seafloor Cavern", "Cave of Origin", "Route 130", "Route 131", "Pacifidlog Town", "Route 132", "Route 133", "Sky Pillar", "Victory Road"]
 BADGES = ["Knuckle Badge", "Stone Badge", "Dynamo Badge", "Balance Badge", "Heat Badge", "Feather Badge", "Mind Badge", "Rain Badge"]
-STATS_NAMES = ["HP", "Attack", "Defense", "Sp. Atk", "Sp. Def", "Speed"]
+STATS_NAMES = {
+    "EN": ["HP", "Attack", "Defense", "Sp. Atk", "Sp. Def", "Speed"],
+    "FR": ["PV", "Attaque", "Défense", "Atq. Spé", "Def. Spé", "Vitesse"]
+}
+
+NATURE_DICO_FR = {
+    "Adamant": "Rigide",
+    "Bashful": "Pudique",
+    "Bold": "Assuré",
+    "Brave": "Brave",
+    "Calm": "Calme",
+    "Careful": "Prudent",
+    "Docile": "Docile",
+    "Gentle": "Gentil",
+    "Hardy": "Hardi",
+    "Hasty": "Pressé",
+    "Impish": "Malin",
+    "Jolly": "Jovial",
+    "Lax": "Lâche",
+    "Lonely": "Solo",
+    "Mild": "Doux",
+    "Modest": "Modeste",
+    "Naive": "Naïf",
+    "Naughty": "Mauvais",
+    "Quiet": "Discret",
+    "Quirky": "Bizarre",
+    "Rash": "Foufou",
+    "Relaxed": "Relax",
+    "Sassy": "Malpoli",
+    "Serious": "Sérieux",
+    "Timid": "Timide"
+}
 
 NATURE_DICO = {
     "Hardy": [None, None],
@@ -35,6 +66,10 @@ NATURE_DICO = {
     "Careful": [4, 3],
     "Quirky": [None, None]
 }
+
+# Setup NATURE_DICO with french Nature values
+for english, french in NATURE_DICO_FR.items():
+    NATURE_DICO[french] = NATURE_DICO[english]
 
 API_PASSWORD = os.getenv("API_PASSWORD", "")
 UPLOAD_BATCH_SIZE = 200
@@ -68,9 +103,9 @@ def missingMandatoryKeys(data):
     mandatoryKeys = {
         "keys.spreadsheetId": data.get("keys", {}).get("spreadsheetId"),
         "keys.sheetId": data.get("keys", {}).get("sheetId"),
-        "updatedData.runDict": data.get("updatedData", {}).get("runDict"),
-        "updatedData.newRuns": data.get("updatedData", {}).get("newRuns"),
-        "updatedData.numberOfRuns": data.get("updatedData", {}).get("numberOfRuns"),
+        "updatedData.runs": data.get("updatedData", {}).get("runs"),
+        "fullData.runs": data.get("fullData", {}).get("runs"),
+        "lang": data.get("lang")
     }
 
     for keyName, keyValue in mandatoryKeys.items():
@@ -81,6 +116,16 @@ def missingMandatoryKeys(data):
     # No missing keys
     return None
         
+
+def containsOutdatedKeys(data):
+    outdatedKeys = ["newRuns", "numberOfRuns"]
+
+    for key in outdatedKeys:
+        if key in data.get("updatedData", {}):
+            return True
+        
+    # No outdated key
+    return False
     
 
 def mergeCells(requests, range):
@@ -216,7 +261,7 @@ def insertRows(requests, sheetId, numberOfRows):
     })
 
 
-def generateRunCard(requests, sheetId, runId, runData):
+def generateRunCard(requests, sheetId, runId, runData, lang):
     startRow = 0
 
     # Helper to convert a relative inside-run row/col to absolute indices
@@ -249,29 +294,31 @@ def generateRunCard(requests, sheetId, runId, runData):
     setCellContent(requests, abs_range(1, 2, 0, 500), "", options = [MERGE, BACKGROUND_LIGHTGREY])
 
     # Run number
-    setCellContent(requests, abs_range(2, 3, 1, 9), f"Run #{runData["runNumber"]}", options = [MERGE, BOLD, CENTER, FONT_CYAN, BACKGROUND_GREY])
+    setCellContent(requests, abs_range(2, 3, 1, 9), 
+                   '=IFERROR("Run #" & (1 + VALUE(REGEXEXTRACT(INDIRECT("B" & ROW() + 18), "\\d+"))), "Run #1")',
+                   options = [MERGE, BOLD, CENTER, FONT_CYAN, BACKGROUND_GREY, FORMULA])
 
     # Run start date
-    setCellContent(requests, abs_range(3, 4, 1, 5), "Run start", options = [MERGE, BOLD, CENTER])
+    setCellContent(requests, abs_range(3, 4, 1, 5), "Début de la run" if lang == "FR" else "Run start", options = [MERGE, BOLD, CENTER])
     setCellContent(requests, abs_range(3, 4, 5, 9), runData["runStart"], options = [MERGE, CENTER])
 
     # Run end date
-    setCellContent(requests, abs_range(4, 5, 1, 5), "Run end", options = [MERGE, BOLD, CENTER])
+    setCellContent(requests, abs_range(4, 5, 1, 5), "Fin de la run" if lang == "FR" else "Run end", options = [MERGE, BOLD, CENTER])
     setCellContent(requests, abs_range(4, 5, 5, 9), runData["runEnd"], options = [MERGE, CENTER])
 
     # Run end date
-    setCellContent(requests, abs_range(5, 6, 1, 5), "Won battles", options = [MERGE, BOLD, CENTER])
+    setCellContent(requests, abs_range(5, 6, 1, 5), "Combats gagnés" if lang == "FR" else "Won battles", options = [MERGE, BOLD, CENTER])
     setCellContent(requests, abs_range(5, 6, 5, 9), runData["wonBattles"], options = [MERGE, CENTER])
 
     # Dead Pokémon
-    setCellContent(requests, abs_range(6, 7, 1, 5), "Dead Pokémon", options = [MERGE, BOLD, CENTER])
+    setCellContent(requests, abs_range(6, 7, 1, 5), "Pokémons morts" if lang == "FR" else "Dead Pokémon", options = [MERGE, BOLD, CENTER])
     setCellContent(requests, abs_range(6, 7, 5, 9), runData["deadPokemon"], options = [MERGE, CENTER])
 
     # White separator, merge all cells horizontally, hide runId in white font
     setCellContent(requests, abs_range(7, 8, 1, 9), f"RundId : {runId}", options = [MERGE, CENTER, FONT_WHITE])
 
     # Gym Badges label
-    setCellContent(requests, abs_range(8, 9, 1, 9), "Gym Badges", options = [MERGE, BOLD, CENTER])
+    setCellContent(requests, abs_range(8, 9, 1, 9), "Badges" if lang == "FR" else "Gym Badges", options = [MERGE, BOLD, CENTER])
 
     # Gym Badges sprites
     for i in range(8):
@@ -368,7 +415,7 @@ def updateRunCard(requests, sheetId, runCardId, runData):
 
 
 
-def generatePokemonCard(requests, sheetId, pokemon, zone, runCardId, pokemonCardId):
+def generatePokemonCard(requests, sheetId, pokemon, zone, runCardId, pokemonCardId, lang):
     startRow = 18 * runCardId + 2
     startColumn = 10 + 5 * pokemonCardId
 
@@ -402,7 +449,7 @@ def generatePokemonCard(requests, sheetId, pokemon, zone, runCardId, pokemonCard
 
     # Pokémon caught in the zone : display all Pokémon data
     if pokemon:
-    
+
         # Pokémon sprite
         setCellContent(requests, abs_range(1, 5, 0, 4), f"=VLOOKUP({pokemon["pokedexId"]},Sprites!$A:$B,2,FALSE)", options = [MERGE, CENTER, FORMULA])
 
@@ -419,10 +466,10 @@ def generatePokemonCard(requests, sheetId, pokemon, zone, runCardId, pokemonCard
         setCellContent(requests, abs_range(6, 7, 0, 2), pokemon["ability"], options = [MERGE, CENTER])
 
         # Level
-        setCellContent(requests, abs_range(6, 7, 2, 4), f"Level {pokemon["level"]}", options = [MERGE, CENTER])
+        setCellContent(requests, abs_range(6, 7, 2, 4),  f"{"Niveau" if lang == "FR" else "Level"} {pokemon["level"]}", options = [MERGE, CENTER])
 
-        # White separator, merge all cells horizontally
-        mergeCells(requests, abs_range(7, 8, 0, 4))
+        # White separator, merge all cells horizontally, hide PID in white font
+        setCellContent(requests, abs_range(7, 8, 0, 4), f"{pokemon["pid"]}", options = [MERGE, CENTER, FONT_WHITE])
 
         # Moves
         for i in range(4):
@@ -438,7 +485,7 @@ def generatePokemonCard(requests, sheetId, pokemon, zone, runCardId, pokemonCard
         statBuffed, statDebuffed = NATURE_DICO[pokemon["nature"]]
 
         for i in range(6):
-            setCellContent(requests, abs_range(12 + i % 3, 13 + i % 3, 2*(i // 3), 1 + 2*(i // 3)), STATS_NAMES[i], options = [CENTER])
+            setCellContent(requests, abs_range(12 + i % 3, 13 + i % 3, 2*(i // 3), 1 + 2*(i // 3)), STATS_NAMES[lang][i], options = [CENTER])
             setCellContent(requests, abs_range(12 + i % 3, 13 + i % 3, 1 + 2*(i // 3), 2 + 2*(i // 3)), pokemon["IVs"][i], options = [CENTER, FONT_LIGHTRED if i == statDebuffed else None,
                                                                                                                                       FONT_RED if i == statBuffed else None, BOLD if i == statBuffed else None])
     
@@ -447,6 +494,30 @@ def generatePokemonCard(requests, sheetId, pokemon, zone, runCardId, pokemonCard
         mergeCells(requests, abs_range(1, 15, 0, 4))
         emptyCell(requests, abs_range(1, 2, 0, 1))
 
+
+def getRunCardId(runId, spreadsheetId):
+
+    # Retrieve all strings in column B
+    column = sheetsService.spreadsheets().values().get(
+        spreadsheetId = spreadsheetId,
+        range = "B:B"
+    ).execute().get("values", [])
+
+    # Iterate on each to find a run with provided runId
+    for rowIndex, row in enumerate(column, start = 1):
+        
+        # Check only rows starting with "runId :"
+        if row and row[0].startswith("RundId : "):
+
+            # Extract the runId after the prefix
+            parsedRunId = row[0].split("RundId : ", 1)[1].strip()
+
+            # Calculate runCardId (0 : first card)
+            if parsedRunId == runId:
+                return int((rowIndex - 8) / 18)
+
+    # Default : runCardId = -1 (no run found) 
+    return -1
 
 # Webapp root
 @flaskApp.route("/", methods=["GET"])
@@ -479,47 +550,48 @@ def updateRun():
         # No data received
         if not data:
             return jsonify({"error": "No data received"}), 400
+        
+        # Outdated parameters
+        if containsOutdatedKeys(data):
+            return jsonify({"error": "Outdated version : please download the latest RunAndBunDisplay version https://github.com/Sykless/RunAndBunDisplay/releases"}), 400
 
         # Missing required fields
         missingKey = missingMandatoryKeys(data)
         if missingKey:
             return jsonify({"error": f"Missing required fields : {missingKey}"}), 400
-
+        
         spreadsheetId = data["keys"]["spreadsheetId"]
         sheetId = data["keys"]["sheetId"]
-        runDict = data["updatedData"]["runs"]
-        newRuns = data["updatedData"]["newRuns"]
-        numberOfRuns = data["updatedData"]["numberOfRuns"]
-
-        # Iterate on each new run and generate a new run card
-        for newRunId in newRuns:
-
-            # Make sure run data was provided
-            if newRunId not in runDict:
-                return jsonify({"error": f"Data for run {newRunId} not provided"}), 400
-
-            # Insert a new run card
-            generateRunCard(requests, sheetId, newRunId, runDict[newRunId]["runData"])
-
-            # Insert a Pokémon card for each zone
-            for i in range(len(ZONES)):
-                zone = ZONES[i]
-                pokemon = runDict[newRunId]["pokemonData"][zone] if zone in runDict[newRunId]["pokemonData"] else None
-
-                # Generate a Pokémon card with Pokémon data if provided
-                generatePokemonCard(requests, sheetId, pokemon, zone, 0, i)
+        updatedData = data["updatedData"]["runs"]
+        fullData = data["fullData"]["runs"]
+        lang = data["lang"]
 
         # Iterate on each updated run and update run/pokemon cards
-        for runId, run in runDict.items():
+        for runId, run in updatedData.items():
 
-            # Only update runs that existed before
-            if (runId not in newRuns):
+            # Search for runId to find runCardId
+            runCardId = getRunCardId(runId, spreadsheetId)
 
-                # Calculate run card id from total number of runs (0 : first card)
-                runCardId = numberOfRuns - run["runData"]["runNumber"]
+            # No run found : create the new run
+            if (runCardId == -1):
+                runCardId = 0
 
-                # If runData has other parameters than runNumber, update them
-                if (set(run["runData"].keys()) - {"runNumber"} != set()):
+                # Insert a new run card
+                generateRunCard(requests, sheetId, runId, fullData[runId]["runData"], lang)
+
+                # Insert a Pokémon card for each zone
+                for i in range(len(ZONES)):
+                    zone = ZONES[i]
+                    pokemon = fullData[runId]["pokemonData"][zone] if zone in fullData[runId]["pokemonData"] else None
+
+                    # Generate a Pokémon card with Pokémon data if provided
+                    generatePokemonCard(requests, sheetId, pokemon, zone, 0, i, lang)
+
+            # RunId found : update row
+            else:
+
+                # If runData has parameters to update, update them
+                if (run["runData"]):
                     updateRunCard(requests, sheetId, runCardId, run["runData"])
 
                 # Iterate on each Pokémon and update cards
@@ -529,7 +601,7 @@ def updateRun():
                     pokemonCardId = ZONES.index(zone)
 
                     # Update/create Pokémon card with provided Pokémon data
-                    generatePokemonCard(requests, sheetId, pokemon, zone, runCardId, pokemonCardId)
+                    generatePokemonCard(requests, sheetId, pokemon, zone, runCardId, pokemonCardId, lang)
 
         # Execute the requests divided into chunks
         for chunkStart in range(0, len(requests), UPLOAD_BATCH_SIZE):
